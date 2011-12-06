@@ -1,17 +1,20 @@
 include makefile.in
 
-server:
+server: dsbweb
 	(cd srv; make)
 
-jclient:
+jclient: dsbweb
 	(cd mlab; make jclient)
 
-cclient:
+cclient: dsbweb
 	(cd mlab; make cclient)
 
-web:
+web: dsbweb
 	(cd mlab; make web)
 	(cd doc; make web)
+
+dsbweb:
+	$(CC) -o dsbweb util/dsbweb.c
 
 run:
 	srv/feaps
@@ -24,6 +27,7 @@ clean:
 	(cd doc; make clean)
 
 distclean: clean
+	rm -f dsbweb
 	(cd srv; make realclean)
 
 realclean: clean
