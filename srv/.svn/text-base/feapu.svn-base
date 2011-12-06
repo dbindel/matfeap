@@ -1,0 +1,3 @@
+#!/bin/sh
+export MATFEAP_SOCKNAME=/tmp/feaps-$USER
+./feaps

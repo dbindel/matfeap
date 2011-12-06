@@ -1,0 +1,220 @@
+\documentclass{report}
+\usepackage{fullpage}
+\usepackage{graphicx}
+
+\title{MATFEAP programmer documentation}
+\author{David Bindel}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+% ===================================================================
+\chapter{MATFEAP basics}
+
+\section{Introduction}
+
+MATFEAP is an interface between MATLAB and the finite element analysis
+program FEAP.  MATFEAP is meant to be a successor to FEAPMEX, an earlier
+interface project which used MATLAB's MEX system for interfacing with
+external codes.  MATFEAP differs from FEAPMEX primarily in that it runs
+MATLAB and FEAP in different processes which communicate with each other
+via either a network socket (or optionally a pipe):
+\begin{center}
+  \includegraphics{commfig}
+\end{center}
+
+There are several advantages to this socket-based architecture:
+\begin{itemize}
+\item
+  The text command interface to FEAP has remained more stable
+  than the internal architecture.  By building the communication between
+  MATLAB and FEAP on this text interface, rather than by calling FEAP's
+  internal routines directly from MATLAB, it is less difficult to keep
+  MATFEAP working with multiple FEAP versions than it was to keep FEAPMEX
+  working.
+
+\item
+  When debugging problems with FEAP, it is possible to run {\tt gdb},
+  {\tt valgrind}, and other debugging tools directly on the FEAP
+  server.  Also, if FEAP crashes, it will not take MATLAB down with
+  it.
+
+\item
+  Because each FEAP simulation runs in a separate process, there are no
+  issues with initializing the global segment (and all the common
+  block variables that FEAP uses) on initialization, nor are there
+  issues with releasing system resources on exit.  In contrast,
+  getting the global FEAP initialization and shutdown right was always
+  tricky with FEAPMEX.
+
+\item
+  Also because each FEAP simulation runs in a separate process, it is
+  possible to have multiple FEAP simulations open simultaneously.
+
+\item
+  The FEAP server does not need to be on the same machine as the MATLAB
+  client.  This could be useful for running MATLAB on a laptop or other
+  ``front-end'' machine and running the FEAP server on a higher-power
+  remote system.
+
+\item
+  MATFEAP does not need a MEX component.  Therefore, there are no
+  issues of compatibility with the compilers used by the MEX
+  interface.  Users can compile the FEAP server using the same
+  compilers and flags that they use to compile FEAP, and the client
+  support code needs only MATLAB and Java.
+
+\end{itemize}
+
+\section{Code organization}
+
+The server code is made up of three basic modules:
+\begin{itemize}
+\item 
+  The server daemon module is responsible for setting up a socket
+  connection on the server side, setting up a new child processes to handle
+  each incoming simulation request, and cleaning up the child processes
+  when simulations are finished.  The call to the server module is transparent
+  from the perspective of the FORTRAN code that calls it.  When the server
+  module returns control to a child process, that child communicates with
+  the client via its standard input and output streams, just as it would
+  if the client were someone entering commands at the terminal.
+
+\item
+  The {\tt feapsrv} module provides a command line interface for accessing
+  FEAP's internal state, and implements the server side of the data transfer
+  protocols used by MATFEAP.  This command line interface is invoked at
+  the start of each simulation, and it can be invoked during the simulation
+  through a FEAP user macro.
+
+\item
+  There are several FORTRAN support routines called by {\tt feapsrv}.
+  Some of these routines are simple interfaces to ordinary FEAP
+  functions; the rest are modifications to FEAP functions, mostly
+  automatically generated.  These FORTRAN routines serve two purposes.
+  First, they let us call a few FEAP routines from {\tt feapsrv}
+  without worrying about proper cross-language binding of FEAP's
+  common block variables.  Second, they add synchronization messages
+  to existing routines in order to make it easy for the client to tell
+  when input is expected.
+
+\end{itemize}
+
+In addition to the FORTRAN support routines, the server is also linked to
+the standard FEAP library.
+
+The support on the client side consists of two pieces: a Java class
+that manages the socket connection (there is also an optional MEX
+library), and a library of MATLAB routines that manage the protocol by
+which MATLAB communicates with the FEAP server.
+
+The documentation that follows is largely automatically extracted from
+specially-formatted comments in the MATFEAP source files.  The documentation
+tool we use is available at
+\begin{verbatim}
+  http://www.cims.nyu.edu/~dbindel/code/dsbweb.c
+\end{verbatim}
+
+
+\section{Running MATFEAP}
+
+To run a MATFEAP simulation, you have to build the {\tt feaps} (FEAP
+server) executable and run it on the machine where the simulation is
+to take place.  Once the FEAP server is running, start MATLAB and
+execute the {\tt matfeap\_init} script to set the system paths
+correctly:
+\input{feapinit}
+
+This initialization routine should work fine with MATLAB versions 7+,
+including the student edition.  In MATLAB 6.5, the class path used by
+MATLAB's JVM cannot be dynamically modified, so one has to set that
+variable in another way -- see the Mathworks site for details.
+
+
+\section{Simple example}
+
+To give the flavor for how MATFEAP works in practice, we give a simple
+example that uses several of MATFEAP's capabilities.
+
+\input{feapex1}
+
+
+% ===================================================================
+\chapter{Setting up the C server}
+
+The {\tt feapserver} routine provides a fairly generic way to turn a
+console-based FORTRAN program into a UNIX server daemon.  From the
+perspective of the FORTRAN program, very little changes on return from
+a call to {\tt feapserver}, except that the input and output terminals
+are now connected to a remote client via a socket.  Ordinary FORTRAN
+{\tt read} and {\tt write} statements directed to the standard output
+will go over that socket.  The caller doesn't need to know anything about
+the details that turn the program into a network server daemon on this
+call.  However, these details and their implementation are spelled out
+below.
+
+\input{feapsock}
+
+
+% ===================================================================
+\chapter{The {\tt feapsrv} interface}
+
+When running {\tt feapsrv}, the client can access most
+MATFEAP-specific functions using a text-based command interface.
+These include things like changing the working directory, setting FEAP
+parameters, and sending or receiving FEAP's internal arrays and common
+block entries.  The C code is in the driver's seat when {\tt feapsrv}
+is active, though there are frequent calls back into the FORTRAN code.
+
+\input{feapsrv}
+
+
+% ===================================================================
+\chapter{FORTRAN support routines}
+
+The FORTRAN support routines really play a secondary role to the C routines.
+They are almost all either modifications of existing FEAP routines or thin
+wrappers over top of existing FEAP routines.  The main reason that some of
+these routines exist is that it is {\em much} easier to access the FORTRAN
+common block data used by FEAP directly from FORTRAN than it is to access 
+it from C.
+
+\input{feapfort}
+
+
+% ===================================================================
+\chapter{MATLAB client}
+
+The MATLAB client uses a thin Java client class to manage sending and
+receiving data over a pipe or TCP socket.  There is also a C-language
+MEX file which can be compiled to send and receive data over a TCP or
+UNIX-domain socket (this C language MEX file is required to run
+MATFEAP with Octave).  Except when using the {\tt feapsrv} interface,
+the protocol is that the FEAP server will send a synchronization
+method whenever it is waiting for input and when it is ready to quit.
+In this mode, the client does not send data except immediately after
+receiving a synchronization message from FEAP.
+
+When using the {\tt feapsrv} interface documented previously, the generic
+protocol is to wait for the {\tt FEAPSRV} prompt, then send a command, then
+wait for the next {\tt FEAPSRV} prompt.  However, there are more elaborate
+protocols for transferring arrays between FEAP and MATLAB, and these are
+documented along with the {\tt feapsrv} module.
+
+\section{Communication performance}
+
+Of the three communication models offered by MATFEAP, the TCP socket
+communication is the most flexible (since it can connect to servers on
+remote machines).  At the same time, for single-machine use, it is the
+slowest of the methods.  On the UNIX and OS X boxes where I have done
+tests, both the pipe communication mechanism and the UNIX-domain
+socket mechanism seem to achieve reasonable performance.  The default
+behavior as set in {\tt matfeap\_init} is to use UNIX-domain sockets
+with the C MEX client, and pipes with the Java client.
+
+\input{feapmlab}
+
+\end{document}

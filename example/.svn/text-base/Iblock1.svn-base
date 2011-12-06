@@ -1,0 +1,25 @@
+feap 
+  0 0 0 2 4 4 
+
+block
+cart n n
+  1 0 0
+  2 1 0
+  3 1 1
+  4 0 1
+
+ebou
+  1 0 1 0
+  2 0 0 1
+
+mate
+  solid
+  elastic isotropic 10 .1
+  density mass 1.0
+
+end
+
+inte
+
+stop
+

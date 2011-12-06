@@ -1,0 +1,15 @@
+Version 0.8 (September 5, 07)
+Fixed synchronization bug in feapquit.
+
+Version 0.7 (July 7, 07)
+Fixed subtle potential synchronization bug on wrap-up; added numbering
+to barrier system again.
+
+Version 0.4-0.6 (July 6-7, 07)
+Added and debugged C MEX interface and UNIX domain sockets.
+
+Version 0.3 (July 5, 07):
+Allow port to be set via MATFEAP_PORT environment variable
+
+Version 0.2 (July 4, 07):  
+First "semi-official" (though still alpha) release
