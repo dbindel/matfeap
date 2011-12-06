@@ -1,0 +1,46 @@
+--- Building ---
+
+To build the software:
+ - Copy makefile.in.ex to makefile.in and modify the parameters appropriately
+ - Run "make" to create srv/feapp and srv/feaps
+
+You should not need any additional libraries beyond those used to compile
+an ordinary FEAP executable on UNIX.  The FEAP server needs to be able to
+access the system socket libraries, but those libraries should already be
+linked in if you are able to use X-Windows graphics.
+
+
+--- Running ---
+
+There are two ways to run the software.  You can either run the FEAP server
+(the default), or you can run FEAP via a pipe.  If you have a particularly
+strict firewall on your system, you may be unable to run using the server.
+
+To run with the FEAP server:
+ - From the command line, start srv/feaps 
+ - In a different window, start MATLAB
+ - Run matfeap_init to set up the relevant MATLAB paths
+ - Run an example (e.g. cd example; blocktest1)
+
+To run with a FEAP pipe, in MATLAB enter the lines
+
+  global matfeap_globals
+  matfeap_global.command = [pwd, '/feapp'];
+
+It is also possible to run the server remotely, or do various other tricks; 
+see the help in feapstart.
+
+Note that MATFEAP probably will not work with versions of MATLAB before 7.0.
+(The student version should also work.)
+
+
+--- Interactive testing ---
+
+MATFEAP lets MATLAB and FEAP interact via a (mostly) text interface.
+You can try this interface directly, either by running srv/feapp from
+the command line or by running the FEAP server (srv/feaps) and executing
+
+  telnet localhost 3490
+
+from a separate window.  Type 'help' at the FEAPSRV> prompt to see the
+list of possible commands.
